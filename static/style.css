@@ -1,0 +1,44 @@
+/* static/style.css */
+body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    background: #f8f9fa;
+}
+
+h1 {
+    margin-top: 20px;
+}
+
+.circle-board {
+    position: relative;
+    width: 400px;
+    height: 400px;
+    margin: 40px auto;
+}
+
+.circle {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    background: #ffffff;
+    border: 2px solid #444;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Position the 6 circles like a clock */
+.circle[data-index="1"] { top: 0%; left: 150px; }
+.circle[data-index="2"] { top: 60px; left: 290px; }
+.circle[data-index="3"] { top: 170px; left: 330px; }
+.circle[data-index="4"] { top: 290px; left: 150px; }
+.circle[data-index="5"] { top: 170px; left: -30px; }
+.circle[data-index="6"] { top: 60px; left: -70px; }
+
+.color-input {
+    width: 80px;
+    margin: 2px 0;
+    padding: 2px;
+}

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dice Solver</title>
+    <style>
+        body { font-family: Arial; text-align: center; }
+        .circle-container {
+            position: relative;
+            width: 90vw; max-width: 400px;
+            height: 90vw; max-height: 400px;
+            margin: 50px auto;
+            border-radius: 50%;
+        }
+        .circle {
+            position: absolute;
+            width: 70px; height: 70px;
+            border: 2px solid #555;
+            border-radius: 50%;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            background: #f5f5f5;
+        }
+        .circle input {
+            width: 45px; height: 45px;
+            font-size: 20px;
+            margin: 3px;
+            text-align: center;
+        }
+        #colorPicker button {
+            width: 45px; height: 45px;
+            font-size: 18px;
+            margin: 2px;
+        }
+        #colorPicker {
+            display: none;
+            position: absolute;
+            background: #eee;
+            border: 2px solid #555;
+            border-radius: 8px;
+            padding: 5px;
+            z-index: 1000;
+        }
+        #result { margin-top: 30px; font-size: 20px; }
+        #solutionBox { margin-top: 20px; white-space: pre-line; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>Dice Solver</h1>
+    <div class="circle-container" id="board"></div>
+    <button onclick="checkSolvable()">Check Solvable</button>
+    <button id="solutionBtn" onclick="showSolution()" style="display:none;">Show Solution</button>
+    <div id="result"></div>
+    <div id="solutionBox"></div>
+
+    <!-- Mobile color picker -->
+    <div id="colorPicker"></div>
+
+<script>
+const positions = [
+  [165, 10], [300, 90], [300, 250],
+  [165, 330], [30, 250], [30, 90]
+];
+const colors = ['R','O','B','Y','G','P'];
+let currentInput = null;
+
+function createBoard() {
+  const container = document.getElementById('board');
+  positions.forEach(([x,y], i) => {
+    const circleDiv = document.createElement('div');
+    circleDiv.className = 'circle';
+    circleDiv.style.left = x + 'px';
+    circleDiv.style.top = y + 'px';
+
+    // Add number label above circle
+    const numberDiv = document.createElement('div');
+    numberDiv.style.position = 'absolute';
+    numberDiv.style.top = '-20px';
+    numberDiv.style.left = '50%';
+    numberDiv.style.transform = 'translateX(-50%)';
+    numberDiv.style.fontWeight = 'bold';
+    numberDiv.innerText = i + 1;
+    circleDiv.appendChild(numberDiv);
+
+    // Add dice inputs
+    circleDiv.innerHTML += `
+      <input maxlength="1" id="c${i}a" readonly>
+      <input maxlength="1" id="c${i}b" readonly>
+    `;
+    container.appendChild(circleDiv);
+  });
+
+  // Attach mobile color picker to inputs
+  document.querySelectorAll('.circle input').forEach(input => {
+    input.addEventListener('click', e => {
+      currentInput = e.target;
+      const picker = document.getElementById('colorPicker');
+      picker.innerHTML = '';
+      colors.forEach(c => {
+        const btn = document.createElement('button');
+        btn.innerText = c;
+        btn.addEventListener('click', () => {
+          currentInput.value = c;
+          picker.style.display = 'none';
+        });
+        picker.appendChild(btn);
+      });
+      const rect = currentInput.getBoundingClientRect();
+      picker.style.top = (rect.bottom + window.scrollY + 5) + 'px';
+      picker.style.left = (rect.left + window.scrollX) + 'px';
+      picker.style.display = 'block';
+    });
+  });
+
+  // Hide picker when clicking outside
+  document.addEventListener('click', e => {
+    const picker = document.getElementById('colorPicker');
+    if (!picker.contains(e.target) && !e.target.classList.contains('circle-input')) {
+      picker.style.display = 'none';
+    }
+  });
+}
+createBoard();
+
+function getCircles() {
+  const circles = [];
+  for (let i = 0; i < 6; i++) {
+    const a = document.getElementById(`c${i}a`).value.toUpperCase();
+    const b = document.getElementById(`c${i}b`).value.toUpperCase();
+    circles.push([a,b].filter(x => x));
+  }
+  return circles;
+}
+
+async function checkSolvable() {
+  const circles = getCircles();
+  const res = await fetch('/check', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ circles })
+  });
+  const data = await res.json();
+  document.getElementById('result').innerText =
+    data.solvable ? '✅ Solvable' : '❌ Unsolvable';
+  document.getElementById('solutionBtn').style.display = data.solvable ? 'inline' : 'none';
+  document.getElementById('solutionBox').innerText = '';
+}
+
+async function showSolution() {
+  const circles = getCircles();
+  const res = await fetch('/solution', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ circles })
+  });
+  const data = await res.json();
+  const box = document.getElementById('solutionBox');
+
+  if (!data.solution || data.solution.length === 0) {
+    box.innerText = "No solution found.";
+    return;
+  }
+
+  box.innerText = "✅ Solvable\n";
+
+  data.solution.forEach((solution, solIdx) => {
+    box.innerText += `\n--- Solution ${solIdx + 1} ---\n`;
+    let prevState = JSON.parse(JSON.stringify(circles));
+
+    solution.forEach((step, idx) => {
+      const fromCircle = step[0] - 1;
+      const dice = prevState[fromCircle].slice();
+      let afterMove = JSON.parse(JSON.stringify(prevState));
+      afterMove[fromCircle] = [];
+
+      let desc = `Step ${idx + 1}: Pick up dice from circle ${fromCircle + 1}\n`;
+
+      let pos = (fromCircle + 1) % 6;
+      dice.forEach(die => {
+        afterMove[pos].push(die);
+        desc += `  Drop ${die} in circle ${pos + 1}\n`;
+        pos = (pos + 1) % 6;
+      });
+
+      desc += "Circle layout:\n";
+      afterMove.forEach((c, i) => {
+        desc += `  Circle ${i + 1}: ${c.length ? c.join(", ") : "(empty)"}\n`;
+      });
+
+      prevState = JSON.parse(JSON.stringify(afterMove));
+      box.innerText += desc + "\n";
+    });
+  });
+}
+</script>
+</body>
+</html>
